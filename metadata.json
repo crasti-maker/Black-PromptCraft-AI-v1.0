@@ -1,0 +1,7 @@
+{
+  "name": "Black PromptCraft AI  v1.0",
+  "description": "High-fidelity prompt engineering suite powered by Gemini 3 Pro. Features cinematic vision extraction, magic refinement, and neural visual previews.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
