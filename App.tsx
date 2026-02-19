@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { VisualStyle, LightingMode, Perspective, GeneratedPrompt, TokenUsage, ModelType, ImageGenerator } from './types';
+import { VisualStyle, LightingMode, Perspective, GeneratedPrompt, TokenUsage, ImageGenerator } from './types';
 import { expandPrompt, generatePreviewImage, extractPromptFromImage } from './services/geminiService';
 import { Button } from './components/Button';
 import { PromptCard } from './components/PromptCard';
@@ -27,9 +27,8 @@ const App: React.FC = () => {
   const [sessionTokens, setSessionTokens] = useState(0);
   const [isDiceRolling, setIsDiceRolling] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [hasUserKey, setHasUserKey] = useState(false);
-  const [aiModel, setAiModel] = useState<ModelType>('flash');
-  
+  // Removed hasUserKey state as API key selection is no longer explicitly managed by the UI for these models.
+
   const [activeImageData, setActiveImageData] = useState<{base64: string, mimeType: string} | null>(null);
   const [isSettingsDirty, setIsSettingsDirty] = useState(false);
 
@@ -46,15 +45,8 @@ const App: React.FC = () => {
     const onboardingComplete = getStorage(ONBOARDING_KEY);
     if (!onboardingComplete) setShowOnboarding(true);
 
-    const checkKey = async () => {
-      try {
-        if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
-          const selected = await window.aistudio.hasSelectedApiKey();
-          setHasUserKey(selected);
-        }
-      } catch (e) {}
-    };
-    checkKey();
+    // Removed checkKey and related window.aistudio.hasSelectedApiKey logic.
+    // API key is now assumed to be available via process.env.API_KEY.
 
     const saved = getStorage(STORAGE_KEY);
     if (saved) {
@@ -63,6 +55,7 @@ const App: React.FC = () => {
         if (parsed.results) setResults(parsed.results);
         if (parsed.sessionTokens) setSessionTokens(parsed.sessionTokens);
       } catch (e) { 
+        console.error("Error parsing saved state:", e);
         try { localStorage.removeItem(STORAGE_KEY); } catch (err) {}
       }
     }
@@ -75,7 +68,9 @@ const App: React.FC = () => {
         const sanitized = results.slice(0, MAX_SAVED_ITEMS);
         const data = JSON.stringify({ results: sanitized, sessionTokens });
         localStorage.setItem(STORAGE_KEY, data);
-      } catch (e) {}
+      } catch (e) {
+        console.error("Error saving state to local storage:", e);
+      }
     };
     const timeout = setTimeout(saveToStorage, 1000);
     return () => clearTimeout(timeout);
@@ -83,21 +78,12 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (activeImageData && mode === 'extract') setIsSettingsDirty(true);
-  }, [selectedStyle, selectedLighting, selectedPerspective, isConcise, selectedGenerator]);
+  }, [selectedStyle, selectedLighting, selectedPerspective, isConcise, selectedGenerator, activeImageData, mode]); // Added activeImageData and mode to dependencies
 
-  const handleSelectKey = async () => {
-    try {
-      if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
-        await window.aistudio.openSelectKey();
-        setHasUserKey(true);
-      }
-    } catch (e) {
-      setError("Selector error.");
-    }
-  };
+  // Removed handleSelectKey function as API key selection is no longer explicitly managed by the UI for these models.
 
   const handleOnboardingComplete = () => {
-    try { localStorage.setItem(ONBOARDING_KEY, 'true'); } catch (e) {}
+    try { localStorage.setItem(ONBOARDING_KEY, 'true'); } catch (e) { console.error("Error setting onboarding complete:", e); }
     setShowOnboarding(false);
   };
 
@@ -107,10 +93,20 @@ const App: React.FC = () => {
     }
   };
 
+  const handleErrorAndKeyCheck = async (err: any) => {
+    console.error("API call failed:", err);
+    if (err instanceof Error && err.message.includes("Requested entity was not found.")) {
+      // Removed API key specific error handling and re-prompting.
+      setError("API Key error: Requested entity not found. Ensure API key is valid and project is set up correctly.");
+    } else {
+      setError("AI Engine offline or network timeout.");
+    }
+  };
+
   const handleExpand = async (isRandom = false) => {
-    if (aiModel === 'pro' && !hasUserKey) {
-      const confirmLogin = window.confirm("Gemini 3 Pro requires API Key authentication. Proceed?");
-      if (confirmLogin) await handleSelectKey();
+    // Relying on process.env.API_KEY being pre-configured for Flash models.
+    if (!process.env.API_KEY) {
+      setError("API Key not configured. Please ensure process.env.API_KEY is set.");
       return;
     }
 
@@ -125,7 +121,7 @@ const App: React.FC = () => {
     setIsExpanding(true);
     setError(null);
     try {
-      const response = await expandPrompt(effectiveSeed, selectedStyle, selectedLighting, selectedPerspective, isConcise, selectedGenerator, aiModel);
+      const response = await expandPrompt(effectiveSeed, selectedStyle, selectedLighting, selectedPerspective, isConcise, selectedGenerator); 
       updateTokens(response.usage);
       const newResults: GeneratedPrompt[] = response.prompts.map((p, idx) => ({
         id: `${Date.now()}-${idx}`,
@@ -139,13 +135,19 @@ const App: React.FC = () => {
       setResults(prev => [...newResults, ...prev].slice(0, 20));
       if (!isRandom) setSeed('');
     } catch (err: any) {
-      setError("AI Engine offline or network timeout.");
+      await handleErrorAndKeyCheck(err);
     } finally {
       setIsExpanding(false);
     }
   };
 
   const runVisionAnalysis = async (imgData: {base64: string, mimeType: string}) => {
+    // Relying on process.env.API_KEY being pre-configured for Flash models.
+    if (!process.env.API_KEY) {
+      setError("API Key not configured. Please ensure process.env.API_KEY is set.");
+      return;
+    }
+
     setIsExpanding(true);
     setError(null);
     try {
@@ -167,7 +169,7 @@ const App: React.FC = () => {
       setResults(prev => [newResult, ...prev].slice(0, 20));
       setIsSettingsDirty(false);
     } catch (err: any) {
-      setError("Vision analysis failed.");
+      await handleErrorAndKeyCheck(err);
     } finally {
       setIsExpanding(false);
     }
@@ -177,7 +179,7 @@ const App: React.FC = () => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
-        setError("Max size: 5MB.");
+        setError("Max size: 5MB for image analysis.");
         return;
       }
       const reader = new FileReader();
@@ -192,13 +194,19 @@ const App: React.FC = () => {
   };
 
   const handleGeneratePreview = async (id: string, content: string) => {
+    // Relying on process.env.API_KEY being pre-configured for Flash models.
+    if (!process.env.API_KEY) {
+      setError("API Key not configured. Please ensure process.env.API_KEY is set.");
+      return;
+    }
+
     setResults(prev => prev.map(p => p.id === id ? { ...p, isGeneratingPreview: true } : p));
     try {
       const { url, usage } = await generatePreviewImage(content);
       updateTokens(usage);
       setResults(prev => prev.map(p => p.id === id ? { ...p, previewUrl: url, isGeneratingPreview: false } : p));
     } catch (err: any) {
-      setError("Generation filtered or failed.");
+      await handleErrorAndKeyCheck(err);
       setResults(prev => prev.map(p => p.id === id ? { ...p, isGeneratingPreview: false } : p));
     }
   };
@@ -232,12 +240,7 @@ const App: React.FC = () => {
           </nav>
           
           <div className="flex items-center gap-4">
-            <button 
-              onClick={handleSelectKey}
-              className={`flex items-center gap-3 px-5 py-3 rounded-xl border transition-all font-black text-[10px] uppercase tracking-widest ${hasUserKey ? 'bg-white/5 border-white/20 text-white' : 'bg-white text-black hover:bg-zinc-200'}`}
-            >
-              {hasUserKey ? <><i className="fas fa-shield-check"></i> <span>SECURE</span></> : <><i className="fas fa-lock-open"></i> <span>AUTH</span></>}
-            </button>
+            {/* Removed the AUTH/SECURE button as API key selection is no longer explicitly managed by the UI for these models */}
             
             <div className="hidden md:flex flex-col items-end gap-1">
               <span className="text-[9px] font-black text-zinc-600 uppercase tracking-widest">Network Load</span>
@@ -262,22 +265,14 @@ const App: React.FC = () => {
                {mode === 'generate' ? "Define Your" : "Break Down"}<br />
                <span className="gradient-text">{mode === 'generate' ? "Concepts" : "Images"}</span>
              </h2>
+             {error && (
+                <div role="alert" className="mt-4 px-6 py-3 bg-red-900/40 border border-red-700 text-red-300 rounded-xl text-xs font-medium max-w-lg mx-auto animate-in fade-in slide-in-from-top-2 duration-300">
+                  <i className="fas fa-triangle-exclamation mr-2"></i> {error}
+                </div>
+              )}
           </div>
           
           <div className="space-y-8">
-            {mode === 'generate' && (
-              <div className="flex justify-center mb-[-1.5rem]">
-                <div className="bg-zinc-900/50 p-1.5 rounded-2xl border border-white/5 flex gap-1">
-                  <button onClick={() => setAiModel('flash')} className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${aiModel === 'flash' ? 'bg-white text-black' : 'text-zinc-600 hover:text-zinc-400'}`}>
-                    <i className="fas fa-bolt"></i> <span>FLASH</span>
-                  </button>
-                  <button onClick={() => setAiModel('pro')} className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${aiModel === 'pro' ? 'bg-white text-black shadow-lg' : 'text-zinc-600 hover:text-zinc-400'}`}>
-                    <i className="fas fa-microchip"></i> <span>PRO</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
             <div className={`glass p-4 md:p-6 rounded-[2rem] flex flex-col md:flex-row items-stretch gap-4 shadow-2xl transition-all duration-700 border-white/10 ${mode === 'extract' ? 'bg-zinc-900/30 ring-1 ring-white/10' : ''}`}>
               {mode === 'generate' ? (
                 <div className="flex flex-col flex-grow gap-4">
@@ -346,7 +341,7 @@ const App: React.FC = () => {
               ))}
               <button onClick={() => setIsConcise(!isConcise)} className={`glass p-4 rounded-3xl border-white/5 flex flex-col justify-center transition-all ${isConcise ? 'bg-white/5' : 'hover:bg-white/5'}`}>
                 <span className="text-[9px] font-black text-zinc-600 uppercase tracking-widest mb-1">Density</span>
-                <span className={`text-[11px] font-black uppercase ${isConcise ? 'text-white' : 'text-zinc-500'}`}>{isConcise ? 'RAW' : 'DESC'}</span>
+                <span className={`text-[11px] font-black uppercase ${isConcise ? 'text-white' : 'text-zinc-500'}`}>{isConcise ? 'SHORT' : 'EXTENDED'}</span>
               </button>
             </div>
           </div>
@@ -359,7 +354,7 @@ const App: React.FC = () => {
               prompt={result} 
               onGeneratePreview={handleGeneratePreview} 
               onCopy={(text) => navigator.clipboard.writeText(text)} 
-              onUpdate={(id, content, usage) => {
+              onUpdate={async (id, content, usage) => { 
                 updateTokens(usage);
                 setResults(prev => prev.map(p => p.id === id ? { ...p, content } : p));
               }}
@@ -368,6 +363,7 @@ const App: React.FC = () => {
                 setMode('generate');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
+              onError={(err: any) => handleErrorAndKeyCheck(err)} 
             />
           ))}
         </section>

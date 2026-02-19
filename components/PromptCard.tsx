@@ -8,8 +8,9 @@ interface PromptCardProps {
   prompt: GeneratedPrompt;
   onGeneratePreview: (id: string, content: string) => void;
   onCopy: (content: string) => void;
-  onUpdate: (id: string, newContent: string, usage?: TokenUsage) => void;
+  onUpdate: (id: string, newContent: string, usage?: TokenUsage) => Promise<void>; // Updated to return Promise<void>
   onBridge?: (content: string) => void;
+  onError: (error: any) => Promise<void>; // Added onError prop
 }
 
 export const PromptCard: React.FC<PromptCardProps> = ({ 
@@ -17,7 +18,8 @@ export const PromptCard: React.FC<PromptCardProps> = ({
   onGeneratePreview, 
   onCopy, 
   onUpdate,
-  onBridge
+  onBridge,
+  onError // Destructure onError
 }) => {
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -72,11 +74,12 @@ export const PromptCard: React.FC<PromptCardProps> = ({
     setIsModifying(true);
     try {
       const { text, usage } = await modifyPrompt(prompt.content, editInstruction);
-      onUpdate(prompt.id, text, usage);
+      await onUpdate(prompt.id, text, usage); // Await onUpdate
       setIsEditing(false);
       setEditInstruction('');
     } catch (err) {
       console.error("Modification failed", err);
+      await onError(err); // Call onError handler
     } finally {
       setIsModifying(false);
     }

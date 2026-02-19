@@ -1,6 +1,6 @@
 {
-  "name": "Black PromptCraft AI  v1.0",
-  "description": "High-fidelity prompt engineering suite powered by Gemini 3 Pro. Features cinematic vision extraction, magic refinement, and neural visual previews.",
+  "name": "BLACK WIZARD",
+  "description": "High-fidelity prompt engineering suite powered by Gemini Flash models. Features cinematic vision extraction, magic refinement, and neural visual previews.",
   "requestFramePermissions": [
     "camera"
   ]

@@ -6,7 +6,8 @@ export interface TokenUsage {
 }
 
 export type GenerationType = 'text' | 'vision';
-export type ModelType = 'flash' | 'pro';
+// Removed ModelType as the application now consistently uses Flash models
+// export type ModelType = 'flash' | 'pro';
 
 export interface GeneratedPrompt {
   id: string;
