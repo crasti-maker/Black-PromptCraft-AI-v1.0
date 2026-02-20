@@ -1,10 +1,10 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { VisualStyle, LightingMode, Perspective, GeneratedPrompt, TokenUsage, ImageGenerator } from './types';
-import { expandPrompt, generatePreviewImage, extractPromptFromImage } from './services/geminiService';
-import { Button } from './components/Button';
-import { PromptCard } from './components/PromptCard';
-import { OnboardingGuide } from './components/OnboardingGuide';
+import { VisualStyle, LightingMode, Perspective, GeneratedPrompt, TokenUsage, ImageGenerator } from './types.ts';
+import { expandPrompt, generatePreviewImage, extractPromptFromImage } from './services/geminiService.ts';
+import { Button } from './components/Button.tsx';
+import { PromptCard } from './components/PromptCard.tsx';
+import { OnboardingGuide } from './components/OnboardingGuide.tsx';
 
 type InputMode = 'generate' | 'extract';
 

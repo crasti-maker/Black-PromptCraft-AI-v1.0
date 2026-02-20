@@ -10,12 +10,13 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script>
         /**
-         * Robust process polyfill.
+         * Robust process polyfill. 
+         * Assicura che process.env sia sempre disponibile prima dell'esecuzione dei moduli.
          */
         (function() {
             window.process = window.process || {};
             window.process.env = window.process.env || {};
-            // The platform will inject the real API_KEY here.
+            // La piattaforma inietterà API_KEY qui se configurata correttamente.
         })();
     </script>
     <style>
@@ -128,5 +129,7 @@
         </div>
         <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
     </div>
+    <!-- Entry point script aggiunto per garantire l'avvio in produzione -->
+    <script type="module" src="./index.tsx"></script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { VisualStyle, LightingMode, Perspective, PromptExpansionResponse, TokenUsage, ImageGenerator } from "../types";
+import { VisualStyle, LightingMode, Perspective, PromptExpansionResponse, TokenUsage, ImageGenerator } from "../types.ts";
 
 // Helper to get a fresh instance with the current process.env.API_KEY
 const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY as string });
@@ -48,8 +48,8 @@ export const expandPrompt = async (
 ): Promise<PromptExpansionResponse> => {
   const ai = getAI();
   const isSurprise = seed.startsWith("SURPRISE_ME:");
-  // Use 'gemini-flash-latest' for text tasks as it maps to the most recent flash version.
-  const modelName = 'gemini-flash-latest'; 
+  // Utilizzo di Gemini 2.5 Flash come mandatorio
+  const modelName = 'gemini-2.5-flash-preview-09-2025'; 
   
   const systemPrompt = `You are a world-class prompt architect specializing in generative AI.
   Your goal is to transform basic ideas into "masterpiece-level" image generation prompts.
@@ -151,7 +151,7 @@ export const extractPromptFromImage = async (
 export const modifyPrompt = async (currentPrompt: string, instruction: string): Promise<{ text: string, usage: TokenUsage }> => {
   const ai = getAI();
   const response = await ai.models.generateContent({
-    model: 'gemini-flash-latest', 
+    model: 'gemini-2.5-flash-preview-09-2025', 
     contents: `Original Prompt: "${currentPrompt}"\nModification Request: "${instruction}"\n\nRewrite the prompt to perfectly incorporate the changes while maintaining the high-quality technical structure. Return ONLY the new prompt string.`,
     config: {
         temperature: 0.7,

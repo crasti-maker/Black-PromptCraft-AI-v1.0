@@ -1,16 +1,16 @@
 
 import React, { useState } from 'react';
-import { GeneratedPrompt, TokenUsage } from '../types';
-import { Button } from './Button';
-import { modifyPrompt } from '../services/geminiService';
+import { GeneratedPrompt, TokenUsage } from '../types.ts';
+import { Button } from './Button.tsx';
+import { modifyPrompt } from '../services/geminiService.ts';
 
 interface PromptCardProps {
   prompt: GeneratedPrompt;
   onGeneratePreview: (id: string, content: string) => void;
   onCopy: (content: string) => void;
-  onUpdate: (id: string, newContent: string, usage?: TokenUsage) => Promise<void>; // Updated to return Promise<void>
+  onUpdate: (id: string, newContent: string, usage?: TokenUsage) => Promise<void>; 
   onBridge?: (content: string) => void;
-  onError: (error: any) => Promise<void>; // Added onError prop
+  onError: (error: any) => Promise<void>; 
 }
 
 export const PromptCard: React.FC<PromptCardProps> = ({ 
@@ -19,7 +19,7 @@ export const PromptCard: React.FC<PromptCardProps> = ({
   onCopy, 
   onUpdate,
   onBridge,
-  onError // Destructure onError
+  onError 
 }) => {
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -74,12 +74,12 @@ export const PromptCard: React.FC<PromptCardProps> = ({
     setIsModifying(true);
     try {
       const { text, usage } = await modifyPrompt(prompt.content, editInstruction);
-      await onUpdate(prompt.id, text, usage); // Await onUpdate
+      await onUpdate(prompt.id, text, usage); 
       setIsEditing(false);
       setEditInstruction('');
     } catch (err) {
       console.error("Modification failed", err);
-      await onError(err); // Call onError handler
+      await onError(err); 
     } finally {
       setIsModifying(false);
     }
@@ -88,7 +88,6 @@ export const PromptCard: React.FC<PromptCardProps> = ({
   return (
     <div className="glass rounded-2xl overflow-hidden flex flex-col h-full group transition-all duration-700 hover:shadow-[0_0_40px_rgba(255,255,255,0.05)] border border-white/5 relative">
       
-      {/* Token Usage Badge */}
       {prompt.usage && (
         <div className="absolute top-4 left-0 right-0 flex justify-center z-30 pointer-events-none">
           <div className="bg-black/90 backdrop-blur-xl px-3 py-1 rounded-full border border-white/10 shadow-2xl flex items-center gap-2 transform -translate-y-2 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-500">
@@ -97,7 +96,6 @@ export const PromptCard: React.FC<PromptCardProps> = ({
         </div>
       )}
 
-      {/* Media Display Area */}
       <div className="relative aspect-square w-full bg-black flex items-center justify-center overflow-hidden">
         {prompt.previewUrl ? (
           <div className="relative w-full h-full">
@@ -151,7 +149,6 @@ export const PromptCard: React.FC<PromptCardProps> = ({
           </div>
         )}
         
-        {/* Badges Overlay */}
         <div className="absolute top-4 left-4 flex flex-col gap-2 z-20">
           <span className="px-3 py-1 bg-white text-black rounded-lg text-[9px] font-black uppercase tracking-wider shadow-lg">
             {prompt.style.split('/')[0]}
@@ -173,7 +170,6 @@ export const PromptCard: React.FC<PromptCardProps> = ({
         )}
       </div>
 
-      {/* Content Area */}
       <div className="p-6 flex flex-col flex-grow bg-zinc-900/30">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest truncate max-w-[70%]">{prompt.title}</h3>
