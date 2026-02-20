@@ -2,8 +2,15 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { VisualStyle, LightingMode, Perspective, PromptExpansionResponse, TokenUsage, ImageGenerator } from "../types.ts";
 
-// Helper to get a fresh instance with the current process.env.API_KEY
-const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+/**
+ * Utilizziamo gemini-2.5-flash come nel tuo esempio funzionante.
+ * Questo modello supporta sia testo che analisi immagini (vision).
+ */
+const TEXT_MODEL = 'gemini-2.5-flash';
+const IMAGE_GEN_MODEL = 'gemini-2.5-flash-image';
+
+// Helper per ottenere l'API Key corretta, dando priorità a GEMINI_API_KEY
+const getApiKey = () => (process.env.GEMINI_API_KEY || process.env.API_KEY) as string;
 
 const getStyledPromptPart = (style: VisualStyle, lighting: LightingMode, perspective: Perspective) => {
   const parts = [];
@@ -22,17 +29,17 @@ const getStyledPromptPart = (style: VisualStyle, lighting: LightingMode, perspec
 const getGeneratorContext = (generator: ImageGenerator) => {
   switch (generator) {
     case ImageGenerator.MIDJOURNEY:
-      return "Optimize for Midjourney v6. Use high-impact stylistic keywords, artistic descriptors, and end prompts with optional parameters like '--v 6.0' or '--stylize'. Use commas to separate concepts. Focus on mood and texture.";
+      return "Optimize for Midjourney v6. Use high-impact stylistic keywords, artistic descriptors, and end prompts with optional parameters like '--v 6.0' or '--stylize'. Focus on mood and texture.";
     case ImageGenerator.DALLE3:
-      return "Optimize for DALL-E 3. Use descriptive, logical, and detailed full sentences. Explain the scene as if describing it to a master painter. Focus on clarity and composition. Avoid technical jargon.";
+      return "Optimize for DALL-E 3. Use descriptive, logical, and detailed full sentences. Focus on clarity and composition. Avoid technical jargon.";
     case ImageGenerator.FLUX:
-      return "Optimize for Flux.1. Use highly descriptive natural language. Focus on hyper-realism, textures, and if relevant, describe text that should appear in the image clearly (using quotes).";
+      return "Optimize for Flux.1. Use highly descriptive natural language. Focus on hyper-realism and textures.";
     case ImageGenerator.SDXL:
-      return "Optimize for Stable Diffusion XL. Use keyword-heavy formatting (tags), weights if necessary, and specific technical terms like '8k resolution', 'highly detailed', 'masterpiece', and 'intricate textures'.";
+      return "Optimize for Stable Diffusion XL. Use keyword-heavy formatting (tags) and specific technical terms like '8k resolution', 'highly detailed'.";
     case ImageGenerator.LEONARDO:
-      return "Optimize for Leonardo AI. Use cinematic and evocative descriptors. Focus on mood, specialized lighting terms, and creative flair suitable for professional digital art.";
+      return "Optimize for Leonardo AI. Use cinematic and evocative descriptors. Focus on professional digital art flair.";
     case ImageGenerator.META_AI:
-      return "Optimize for Meta AI (Llama 3 Image Gen). Use a balanced mix of natural language and stylistic keywords. Focus on clear subject description and environmental context.";
+      return "Optimize for Meta AI. Use a balanced mix of natural language and stylistic keywords.";
     default:
       return "Use a universal high-quality prompt format suitable for any modern image generator.";
   }
@@ -46,25 +53,11 @@ export const expandPrompt = async (
   isConcise: boolean,
   generator: ImageGenerator,
 ): Promise<PromptExpansionResponse> => {
-  const ai = getAI();
+  const ai = new GoogleGenAI({ apiKey: getApiKey() });
   const isSurprise = seed.startsWith("SURPRISE_ME:");
-  // Utilizzo di Gemini 2.5 Flash come mandatorio
-  const modelName = 'gemini-2.5-flash-preview-09-2025'; 
   
   const systemPrompt = `You are a world-class prompt architect specializing in generative AI.
-  Your goal is to transform basic ideas into "masterpiece-level" image generation prompts.
-  
-  ${isSurprise 
-    ? "Generate 3 completely unique, cinematic, and diverse concepts from scratch. Think outside the box." 
-    : "Expand the user's seed into 3 professional, high-fidelity image generation prompts."}
-  
-  Rules for expansion:
-  1. Describe the subject with vivid, high-end adjectives.
-  2. Define the environment, atmosphere, and background in detail.
-  3. Specify materials, textures, and fine details.
-  4. Use professional photography or digital art terminology.
-  
-  Return ONLY a valid JSON object.
+  Transform basic ideas into "masterpiece-level" image generation prompts.
   
   Generator Target: ${generator}.
   ${getGeneratorContext(generator)}
@@ -72,15 +65,16 @@ export const expandPrompt = async (
   Visual Constraints:
   ${getStyledPromptPart(style, lighting, perspective)}
   
-  Output Detail level: ${isConcise ? 'Extremely concise, minimal, keyword-driven (tokens)' : 'Extended, descriptive, and immersive (natural language)'}.`;
+  Output Detail level: ${isConcise ? 'Extremely concise, minimal, keyword-driven' : 'Extended, descriptive, and immersive'}.
+  
+  Return ONLY a valid JSON object following the schema.`;
 
   const response = await ai.models.generateContent({
-    model: modelName,
-    contents: isSurprise ? "Generate 3 random masterpiece prompts." : seed,
+    model: TEXT_MODEL,
+    contents: isSurprise ? "Generate 3 random but highly creative image concepts." : seed,
     config: {
       systemInstruction: systemPrompt,
       responseMimeType: "application/json",
-      thinkingConfig: { thinkingBudget: 0 },
       responseSchema: {
         type: Type.OBJECT,
         properties: {
@@ -117,28 +111,23 @@ export const extractPromptFromImage = async (
   isConcise: boolean,
   generator: ImageGenerator
 ): Promise<{ text: string, usage: TokenUsage }> => {
-  const ai = getAI();
-  const instruction = `Analyze this image deeply. Deconstruct it into a high-fidelity text-to-image prompt.
-  Capture the core subject, the style, the color palette, and the specific lighting.
+  const ai = new GoogleGenAI({ apiKey: getApiKey() });
   
+  const instruction = `Analyze this image deeply and deconstruct it into a high-fidelity text-to-image prompt.
   Target Model: ${generator}
   ${getGeneratorContext(generator)}
-  Detail Level: ${isConcise ? 'Extremely concise keywords' : 'Descriptive and atmospheric sentences'}
+  Detail Level: ${isConcise ? 'Keywords only' : 'Descriptive sentences'}
   ${getStyledPromptPart(style, lighting, perspective)}
   
-  Return ONLY the prompt text. No preamble.`;
+  Return only the prompt text.`;
 
   const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash-image', 
+    model: TEXT_MODEL, 
     contents: {
       parts: [
         { inlineData: { data: base64Data, mimeType } },
         { text: instruction }
       ]
-    },
-    config: { 
-      temperature: 0.4,
-      thinkingConfig: { thinkingBudget: 0 }
     }
   });
 
@@ -149,14 +138,10 @@ export const extractPromptFromImage = async (
 };
 
 export const modifyPrompt = async (currentPrompt: string, instruction: string): Promise<{ text: string, usage: TokenUsage }> => {
-  const ai = getAI();
+  const ai = new GoogleGenAI({ apiKey: getApiKey() });
   const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash-preview-09-2025', 
-    contents: `Original Prompt: "${currentPrompt}"\nModification Request: "${instruction}"\n\nRewrite the prompt to perfectly incorporate the changes while maintaining the high-quality technical structure. Return ONLY the new prompt string.`,
-    config: {
-        temperature: 0.7,
-        thinkingConfig: { thinkingBudget: 0 }
-    }
+    model: TEXT_MODEL, 
+    contents: `Original Prompt: "${currentPrompt}"\nModification Request: "${instruction}"\n\nRewrite the prompt to incorporate the changes. Return ONLY the new prompt string.`
   });
   return {
     text: response.text?.trim() || currentPrompt,
@@ -165,9 +150,9 @@ export const modifyPrompt = async (currentPrompt: string, instruction: string): 
 };
 
 export const generatePreviewImage = async (prompt: string): Promise<{ url: string, usage: TokenUsage }> => {
-  const ai = getAI();
+  const ai = new GoogleGenAI({ apiKey: getApiKey() });
   const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash-image',
+    model: IMAGE_GEN_MODEL,
     contents: { parts: [{ text: prompt }] },
     config: { imageConfig: { aspectRatio: "1:1" } },
   });
