@@ -22,9 +22,9 @@ const getStyledPromptPart = (style: VisualStyle, lighting: LightingMode, perspec
 const getGeneratorContext = (generator: ImageGenerator) => {
   switch (generator) {
     case ImageGenerator.MIDJOURNEY:
-      return "Optimize for Midjourney v6. Use high-impact stylistic keywords, artistic descriptors, and end prompts with optional parameters like '--v 6.0' or '--stylize'. Use commas to separate concepts.";
+      return "Optimize for Midjourney v6. Use high-impact stylistic keywords, artistic descriptors, and end prompts with optional parameters like '--v 6.0' or '--stylize'. Use commas to separate concepts. Focus on mood and texture.";
     case ImageGenerator.DALLE3:
-      return "Optimize for DALL-E 3. Use descriptive, logical, and detailed full sentences. Explain the scene as if describing it to a master painter. Focus on clarity and composition.";
+      return "Optimize for DALL-E 3. Use descriptive, logical, and detailed full sentences. Explain the scene as if describing it to a master painter. Focus on clarity and composition. Avoid technical jargon.";
     case ImageGenerator.FLUX:
       return "Optimize for Flux.1. Use highly descriptive natural language. Focus on hyper-realism, textures, and if relevant, describe text that should appear in the image clearly (using quotes).";
     case ImageGenerator.SDXL:
@@ -48,13 +48,21 @@ export const expandPrompt = async (
 ): Promise<PromptExpansionResponse> => {
   const ai = getAI();
   const isSurprise = seed.startsWith("SURPRISE_ME:");
-  // All text generation tasks now use 'gemini-flash-latest' as per user request and guidelines.
+  // Use 'gemini-flash-latest' for text tasks as it maps to the most recent flash version.
   const modelName = 'gemini-flash-latest'; 
   
-  const systemPrompt = `You are a world-class prompt architect.
+  const systemPrompt = `You are a world-class prompt architect specializing in generative AI.
+  Your goal is to transform basic ideas into "masterpiece-level" image generation prompts.
+  
   ${isSurprise 
-    ? "Generate 3 completely unique, cinematic, and diverse concepts from scratch." 
+    ? "Generate 3 completely unique, cinematic, and diverse concepts from scratch. Think outside the box." 
     : "Expand the user's seed into 3 professional, high-fidelity image generation prompts."}
+  
+  Rules for expansion:
+  1. Describe the subject with vivid, high-end adjectives.
+  2. Define the environment, atmosphere, and background in detail.
+  3. Specify materials, textures, and fine details.
+  4. Use professional photography or digital art terminology.
   
   Return ONLY a valid JSON object.
   
@@ -64,7 +72,7 @@ export const expandPrompt = async (
   Visual Constraints:
   ${getStyledPromptPart(style, lighting, perspective)}
   
-  Output Detail level: ${isConcise ? 'Extremely concise, minimal, keyword-driven' : 'Extended and descriptive'}.`;
+  Output Detail level: ${isConcise ? 'Extremely concise, minimal, keyword-driven (tokens)' : 'Extended, descriptive, and immersive (natural language)'}.`;
 
   const response = await ai.models.generateContent({
     model: modelName,
@@ -72,12 +80,7 @@ export const expandPrompt = async (
     config: {
       systemInstruction: systemPrompt,
       responseMimeType: "application/json",
-      // As per guidelines, 'thinkingBudget' can be omitted for default behavior, 
-      // but explicitly setting it to 0 or a small value for Flash models is also an option if latency is critical.
-      // For text generation with 'gemini-flash-latest', the default thinking budget is usually fine.
-      // The previous comment about 'not applicable for gemini-flash-latest by default' was incorrect.
-      // Guidelines state: "The Thinking Config is only available for the Gemini 3 and 2.5 series models."
-      thinkingConfig: { thinkingBudget: 0 }, // Set to 0 for potentially faster responses if explicit thinking is not needed.
+      thinkingConfig: { thinkingBudget: 0 },
       responseSchema: {
         type: Type.OBJECT,
         properties: {
@@ -115,15 +118,17 @@ export const extractPromptFromImage = async (
   generator: ImageGenerator
 ): Promise<{ text: string, usage: TokenUsage }> => {
   const ai = getAI();
-  const instruction = `Deconstruct this image into a text-to-image prompt.
+  const instruction = `Analyze this image deeply. Deconstruct it into a high-fidelity text-to-image prompt.
+  Capture the core subject, the style, the color palette, and the specific lighting.
+  
   Target Model: ${generator}
   ${getGeneratorContext(generator)}
-  Detail Level: ${isConcise ? 'Extremely concise, minimal, keyword-driven' : 'Extended and descriptive'}
+  Detail Level: ${isConcise ? 'Extremely concise keywords' : 'Descriptive and atmospheric sentences'}
   ${getStyledPromptPart(style, lighting, perspective)}
-  Return ONLY the prompt text.`;
+  
+  Return ONLY the prompt text. No preamble.`;
 
   const response = await ai.models.generateContent({
-    // Changed to 'gemini-2.5-flash-image' as recommended for image analysis tasks.
     model: 'gemini-2.5-flash-image', 
     contents: {
       parts: [
@@ -132,8 +137,8 @@ export const extractPromptFromImage = async (
       ]
     },
     config: { 
-      temperature: 0.2,
-      thinkingConfig: { thinkingBudget: 0 } // Flash models can use thinkingBudget
+      temperature: 0.4,
+      thinkingConfig: { thinkingBudget: 0 }
     }
   });
 
@@ -146,12 +151,11 @@ export const extractPromptFromImage = async (
 export const modifyPrompt = async (currentPrompt: string, instruction: string): Promise<{ text: string, usage: TokenUsage }> => {
   const ai = getAI();
   const response = await ai.models.generateContent({
-    // Changed to 'gemini-flash-latest' for text modification.
     model: 'gemini-flash-latest', 
-    contents: `Original: "${currentPrompt}"\nChange: "${instruction}"\n\nRewrite for high-fidelity image generation. Return ONLY the new prompt.`,
+    contents: `Original Prompt: "${currentPrompt}"\nModification Request: "${instruction}"\n\nRewrite the prompt to perfectly incorporate the changes while maintaining the high-quality technical structure. Return ONLY the new prompt string.`,
     config: {
         temperature: 0.7,
-        thinkingConfig: { thinkingBudget: 0 } // Flash models can use thinkingBudget
+        thinkingConfig: { thinkingBudget: 0 }
     }
   });
   return {
@@ -163,7 +167,6 @@ export const modifyPrompt = async (currentPrompt: string, instruction: string): 
 export const generatePreviewImage = async (prompt: string): Promise<{ url: string, usage: TokenUsage }> => {
   const ai = getAI();
   const response = await ai.models.generateContent({
-    // Model 'gemini-2.5-flash-image' is correct for image generation as per guidelines.
     model: 'gemini-2.5-flash-image',
     contents: { parts: [{ text: prompt }] },
     config: { imageConfig: { aspectRatio: "1:1" } },

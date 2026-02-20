@@ -11,7 +11,7 @@ type InputMode = 'generate' | 'extract';
 const DAILY_TOKEN_LIMIT = 2000000;
 const STORAGE_KEY = 'promptcraft_v4_storage';
 const ONBOARDING_KEY = 'promptcraft_v4_onboarded';
-const MAX_SAVED_ITEMS = 8;
+const MAX_SAVED_ITEMS = 12;
 
 const App: React.FC = () => {
   const [mode, setMode] = useState<InputMode>('generate');
@@ -27,7 +27,7 @@ const App: React.FC = () => {
   const [sessionTokens, setSessionTokens] = useState(0);
   const [isDiceRolling, setIsDiceRolling] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
-  // Removed hasUserKey state as API key selection is no longer explicitly managed by the UI for these models.
+  const [isDragging, setIsDragging] = useState(false);
 
   const [activeImageData, setActiveImageData] = useState<{base64: string, mimeType: string} | null>(null);
   const [isSettingsDirty, setIsSettingsDirty] = useState(false);
@@ -44,9 +44,6 @@ const App: React.FC = () => {
 
     const onboardingComplete = getStorage(ONBOARDING_KEY);
     if (!onboardingComplete) setShowOnboarding(true);
-
-    // Removed checkKey and related window.aistudio.hasSelectedApiKey logic.
-    // API key is now assumed to be available via process.env.API_KEY.
 
     const saved = getStorage(STORAGE_KEY);
     if (saved) {
@@ -78,9 +75,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (activeImageData && mode === 'extract') setIsSettingsDirty(true);
-  }, [selectedStyle, selectedLighting, selectedPerspective, isConcise, selectedGenerator, activeImageData, mode]); // Added activeImageData and mode to dependencies
-
-  // Removed handleSelectKey function as API key selection is no longer explicitly managed by the UI for these models.
+  }, [selectedStyle, selectedLighting, selectedPerspective, isConcise, selectedGenerator, activeImageData, mode]);
 
   const handleOnboardingComplete = () => {
     try { localStorage.setItem(ONBOARDING_KEY, 'true'); } catch (e) { console.error("Error setting onboarding complete:", e); }
@@ -95,18 +90,12 @@ const App: React.FC = () => {
 
   const handleErrorAndKeyCheck = async (err: any) => {
     console.error("API call failed:", err);
-    if (err instanceof Error && err.message.includes("Requested entity was not found.")) {
-      // Removed API key specific error handling and re-prompting.
-      setError("API Key error: Requested entity not found. Ensure API key is valid and project is set up correctly.");
-    } else {
-      setError("AI Engine offline or network timeout.");
-    }
+    setError(err.message || "AI Engine offline or network timeout.");
   };
 
   const handleExpand = async (isRandom = false) => {
-    // Relying on process.env.API_KEY being pre-configured for Flash models.
     if (!process.env.API_KEY) {
-      setError("API Key not configured. Please ensure process.env.API_KEY is set.");
+      setError("API Key not configured.");
       return;
     }
 
@@ -132,7 +121,7 @@ const App: React.FC = () => {
         usage: idx === 0 ? response.usage : undefined,
         type: 'text'
       }));
-      setResults(prev => [...newResults, ...prev].slice(0, 20));
+      setResults(prev => [...newResults, ...prev].slice(0, 30));
       if (!isRandom) setSeed('');
     } catch (err: any) {
       await handleErrorAndKeyCheck(err);
@@ -141,10 +130,24 @@ const App: React.FC = () => {
     }
   };
 
+  const processImage = (file: File) => {
+    if (file.size > 10 * 1024 * 1024) {
+      setError("Max size: 10MB for image analysis.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const base64 = ev.target?.result as string;
+      const data = { base64, mimeType: file.type };
+      setActiveImageData(data);
+      runVisionAnalysis(data);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const runVisionAnalysis = async (imgData: {base64: string, mimeType: string}) => {
-    // Relying on process.env.API_KEY being pre-configured for Flash models.
     if (!process.env.API_KEY) {
-      setError("API Key not configured. Please ensure process.env.API_KEY is set.");
+      setError("API Key not configured.");
       return;
     }
 
@@ -166,7 +169,7 @@ const App: React.FC = () => {
         usage,
         type: 'vision'
       };
-      setResults(prev => [newResult, ...prev].slice(0, 20));
+      setResults(prev => [newResult, ...prev].slice(0, 30));
       setIsSettingsDirty(false);
     } catch (err: any) {
       await handleErrorAndKeyCheck(err);
@@ -175,28 +178,33 @@ const App: React.FC = () => {
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        setError("Max size: 5MB for image analysis.");
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const base64 = ev.target?.result as string;
-        const data = { base64, mimeType: file.type };
-        setActiveImageData(data);
-        runVisionAnalysis(data);
-      };
-      reader.readAsDataURL(file);
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      setMode('extract');
+      processImage(file);
     }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) processImage(file);
+  };
+
   const handleGeneratePreview = async (id: string, content: string) => {
-    // Relying on process.env.API_KEY being pre-configured for Flash models.
     if (!process.env.API_KEY) {
-      setError("API Key not configured. Please ensure process.env.API_KEY is set.");
+      setError("API Key not configured.");
       return;
     }
 
@@ -217,9 +225,25 @@ const App: React.FC = () => {
   }, [sessionTokens]);
 
   return (
-    <div className="min-h-[100dvh] flex flex-col relative selection:bg-white/20">
+    <div 
+      className="min-h-[100dvh] flex flex-col relative selection:bg-white/20 transition-colors duration-300"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       {showOnboarding && <OnboardingGuide onComplete={handleOnboardingComplete} />}
       
+      {isDragging && (
+        <div className="fixed inset-0 z-[1000] bg-white/10 backdrop-blur-xl flex items-center justify-center border-[10px] border-dashed border-white/20 m-4 rounded-[3rem] pointer-events-none animate-in fade-in duration-300">
+          <div className="flex flex-col items-center gap-8">
+            <div className="w-32 h-32 bg-white rounded-full flex items-center justify-center animate-bounce shadow-[0_0_50px_rgba(255,255,255,0.4)]">
+              <i className="fas fa-cloud-arrow-up text-black text-5xl"></i>
+            </div>
+            <p className="text-4xl font-black uppercase tracking-[0.2em] text-white text-center">Neural Injection Detected</p>
+          </div>
+        </div>
+      )}
+
       <header className="sticky top-0 z-[100] glass border-b border-white/5 py-4 md:py-6 px-4 md:px-12 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div className="w-10 h-10 md:w-12 md:h-12 bg-white rounded-2xl flex items-center justify-center shadow-2xl group hover:rotate-12 transition-all cursor-pointer">
@@ -229,7 +253,7 @@ const App: React.FC = () => {
             <h1 className="text-xl md:text-2xl font-black tracking-tighter uppercase leading-none">
               PROMPT<span className="text-zinc-500">CRAFT</span>
             </h1>
-            <p className="text-[8px] md:text-[9px] text-zinc-600 font-black uppercase tracking-[0.4em]">Monochrome OS v4</p>
+            <p className="text-[8px] md:text-[9px] text-zinc-600 font-black uppercase tracking-[0.4em]">Neural OS v4.2</p>
           </div>
         </div>
 
@@ -240,10 +264,8 @@ const App: React.FC = () => {
           </nav>
           
           <div className="flex items-center gap-4">
-            {/* Removed the AUTH/SECURE button as API key selection is no longer explicitly managed by the UI for these models */}
-            
             <div className="hidden md:flex flex-col items-end gap-1">
-              <span className="text-[9px] font-black text-zinc-600 uppercase tracking-widest">Network Load</span>
+              <span className="text-[9px] font-black text-zinc-600 uppercase tracking-widest">Model Load</span>
               <div className="w-32 h-1 bg-zinc-900 rounded-full overflow-hidden">
                 <div className="h-full bg-white transition-all duration-1000 ease-out" style={{ width: `${Math.min(100, stats.percent)}%` }} />
               </div>
@@ -260,10 +282,10 @@ const App: React.FC = () => {
       <main className="flex-grow container mx-auto px-6 md:px-12 py-12 md:py-24">
         <section className="max-w-4xl mx-auto mb-16 md:mb-32">
           <div className="text-center mb-12 md:mb-20 space-y-6">
-             <span className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.6em]">System Protocol 00-F</span>
+             <span className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.6em] animate-pulse">Neural Engine Active</span>
              <h2 className="text-5xl md:text-8xl font-black tracking-tighter leading-none uppercase">
-               {mode === 'generate' ? "Define Your" : "Break Down"}<br />
-               <span className="gradient-text">{mode === 'generate' ? "Concepts" : "Images"}</span>
+               {mode === 'generate' ? "Synthesize" : "Reverse"}<br />
+               <span className="gradient-text">{mode === 'generate' ? "Prompts" : "Vision"}</span>
              </h2>
              {error && (
                 <div role="alert" className="mt-4 px-6 py-3 bg-red-900/40 border border-red-700 text-red-300 rounded-xl text-xs font-medium max-w-lg mx-auto animate-in fade-in slide-in-from-top-2 duration-300">
@@ -280,7 +302,7 @@ const App: React.FC = () => {
                     <div className="flex-grow flex items-center px-6 py-5 relative bg-black/60 rounded-3xl border border-white/5 focus-within:border-white/40 transition-colors">
                       <input 
                         type="text" 
-                        placeholder="Inject prompt seed..." 
+                        placeholder="Describe your vision..." 
                         className="bg-transparent border-none outline-none w-full text-white placeholder:text-zinc-700 text-lg md:text-2xl font-bold pr-12" 
                         value={seed} 
                         onChange={(e) => setSeed(e.target.value)} 
@@ -312,8 +334,11 @@ const App: React.FC = () => {
                   <div className="flex-grow w-full h-28 border-2 border-dashed border-zinc-800 rounded-[2rem] flex items-center justify-center cursor-pointer hover:border-white/40 hover:bg-white/5 group px-8 text-center" onClick={() => fileInputRef.current?.click()}>
                     <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
                     <div className="flex items-center gap-4 text-zinc-600 group-hover:text-white transition-colors">
-                      <i className="fas fa-plus text-3xl"></i>
-                      <span className="font-black text-[10px] md:text-xs uppercase tracking-[0.3em]">{activeImageData ? 'Replace Reference' : 'Load Neural Reference'}</span>
+                      <i className="fas fa-cloud-arrow-up text-3xl"></i>
+                      <div className="flex flex-col items-start">
+                        <span className="font-black text-[10px] md:text-xs uppercase tracking-[0.3em]">{activeImageData ? 'Replace Reference' : 'Load Neural Reference'}</span>
+                        <span className="text-[8px] text-zinc-500 uppercase mt-1">Drag and Drop Support Active</span>
+                      </div>
                     </div>
                   </div>
                   {activeImageData && (
@@ -339,7 +364,7 @@ const App: React.FC = () => {
                   </select>
                 </div>
               ))}
-              <button onClick={() => setIsConcise(!isConcise)} className={`glass p-4 rounded-3xl border-white/5 flex flex-col justify-center transition-all ${isConcise ? 'bg-white/5' : 'hover:bg-white/5'}`}>
+              <button onClick={() => setIsConcise(!isConcise)} className={`glass p-4 rounded-3xl border-white/5 flex flex-col justify-center transition-all ${isConcise ? 'bg-white/5 shadow-inner' : 'hover:bg-white/5'}`}>
                 <span className="text-[9px] font-black text-zinc-600 uppercase tracking-widest mb-1">Density</span>
                 <span className={`text-[11px] font-black uppercase ${isConcise ? 'text-white' : 'text-zinc-500'}`}>{isConcise ? 'SHORT' : 'EXTENDED'}</span>
               </button>
@@ -347,13 +372,15 @@ const App: React.FC = () => {
           </div>
         </section>
 
-        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-12">
+        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-12 animate-in fade-in slide-in-from-bottom-8 duration-1000">
           {results.map((result) => (
             <PromptCard 
               key={result.id} 
               prompt={result} 
               onGeneratePreview={handleGeneratePreview} 
-              onCopy={(text) => navigator.clipboard.writeText(text)} 
+              onCopy={(text) => {
+                navigator.clipboard.writeText(text);
+              }} 
               onUpdate={async (id, content, usage) => { 
                 updateTokens(usage);
                 setResults(prev => prev.map(p => p.id === id ? { ...p, content } : p));
@@ -366,6 +393,12 @@ const App: React.FC = () => {
               onError={(err: any) => handleErrorAndKeyCheck(err)} 
             />
           ))}
+          {results.length === 0 && !isExpanding && (
+            <div className="col-span-full py-32 flex flex-col items-center opacity-20">
+               <i className="fas fa-ghost text-6xl mb-6"></i>
+               <p className="text-[10px] font-black uppercase tracking-[0.6em]">Awaiting Neural Seed</p>
+            </div>
+          )}
         </section>
       </main>
 
@@ -377,7 +410,7 @@ const App: React.FC = () => {
                 <i className="fas fa-at text-2xl cursor-pointer hover:text-white"></i>
             </div>
             <p className="text-[10px] font-black text-zinc-800 uppercase tracking-[0.6em] text-center">
-              SYSTEM PROMPTCRAFT &bull; ALL RIGHTS RESERVED &bull; MMXXV
+              SYSTEM PROMPTCRAFT &bull; POWERED BY GEMINI 2.5 FLASH &bull; MMXXV
             </p>
         </div>
       </footer>

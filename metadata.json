@@ -1,7 +1,5 @@
 {
   "name": "BLACK WIZARD",
   "description": "High-fidelity prompt engineering suite powered by Gemini Flash models. Features cinematic vision extraction, magic refinement, and neural visual previews.",
-  "requestFramePermissions": [
-    "camera"
-  ]
+  "requestFramePermissions": []
 }
