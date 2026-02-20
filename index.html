@@ -10,13 +10,18 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script>
         /**
-         * Robust process polyfill. 
-         * Assicura che process.env sia sempre disponibile prima dell'esecuzione dei moduli.
+         * Enhanced process polyfill. 
+         * Assicura che process.env sia sempre disponibile e sincronizza GEMINI_API_KEY con API_KEY.
          */
         (function() {
             window.process = window.process || {};
             window.process.env = window.process.env || {};
-            // La piattaforma inietterà API_KEY qui se configurata correttamente.
+            
+            // Bridge GEMINI_API_KEY to API_KEY if needed (compatibility with various hosting environments)
+            // Se API_KEY non è definita ma GEMINI_API_KEY sì, facciamo il mirroring.
+            if (!window.process.env.API_KEY && window.process.env.GEMINI_API_KEY) {
+                window.process.env.API_KEY = window.process.env.GEMINI_API_KEY;
+            }
         })();
     </script>
     <style>
@@ -129,7 +134,6 @@
         </div>
         <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
     </div>
-    <!-- Entry point script aggiunto per garantire l'avvio in produzione -->
     <script type="module" src="./index.tsx"></script>
 </body>
 </html>
