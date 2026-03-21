@@ -10,7 +10,7 @@ interface PromptCardProps {
   onCopy: (content: string) => void;
   onUpdate: (id: string, newContent: string, usage?: TokenUsage) => Promise<void>; 
   onBridge?: (content: string) => void;
-  onError: (error: any) => Promise<void>; 
+  onError: (error: Error) => Promise<void>; 
 }
 
 export const PromptCard: React.FC<PromptCardProps> = ({ 

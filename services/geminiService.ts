@@ -67,11 +67,14 @@ export const expandPrompt = async (
   
   Output Detail level: ${isConcise ? 'Extremely concise, minimal, keyword-driven' : 'Extended, descriptive, and immersive'}.
   
+  Generate exactly 3 distinct, high-quality image generation prompts.
   Return ONLY a valid JSON object following the schema.`;
+
+  const contents = isSurprise ? "Generate 3 random but highly creative image concepts." : `Generate 3 distinct, high-quality image generation prompts based on this idea: "${seed}"`;
 
   const response = await ai.models.generateContent({
     model: TEXT_MODEL,
-    contents: isSurprise ? "Generate 3 random but highly creative image concepts." : seed,
+    contents: contents,
     config: {
       systemInstruction: systemPrompt,
       responseMimeType: "application/json",
@@ -149,12 +152,12 @@ export const modifyPrompt = async (currentPrompt: string, instruction: string): 
   };
 };
 
-export const generatePreviewImage = async (prompt: string): Promise<{ url: string, usage: TokenUsage }> => {
+export const generatePreviewImage = async (prompt: string, aspectRatio: string = "1:1"): Promise<{ url: string, usage: TokenUsage }> => {
   const ai = new GoogleGenAI({ apiKey: getApiKey() });
   const response = await ai.models.generateContent({
     model: IMAGE_GEN_MODEL,
     contents: { parts: [{ text: prompt }] },
-    config: { imageConfig: { aspectRatio: "1:1" } },
+    config: { imageConfig: { aspectRatio: aspectRatio as any } },
   });
 
   const imagePart = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);

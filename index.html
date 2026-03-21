@@ -6,24 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>PromptCraft AI - Neural Master</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script>
-        /**
-         * Enhanced process polyfill. 
-         * Assicura che process.env sia sempre disponibile e sincronizza GEMINI_API_KEY con API_KEY.
-         */
-        (function() {
-            window.process = window.process || {};
-            window.process.env = window.process.env || {};
-            
-            // Bridge GEMINI_API_KEY to API_KEY if needed (compatibility with various hosting environments)
-            // Se API_KEY non è definita ma GEMINI_API_KEY sì, facciamo il mirroring.
-            if (!window.process.env.API_KEY && window.process.env.GEMINI_API_KEY) {
-                window.process.env.API_KEY = window.process.env.GEMINI_API_KEY;
-            }
-        })();
-    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap');
         
@@ -124,6 +108,7 @@
   }
 }
 </script>
+<link rel="stylesheet" href="/index.css">
 </head>
 <body>
     <div class="nebula-bg"></div>
@@ -135,5 +120,6 @@
         <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
     </div>
     <script type="module" src="./index.tsx"></script>
+
 </body>
 </html>

@@ -1,6 +1,7 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { VisualStyle, LightingMode, Perspective, GeneratedPrompt, TokenUsage, ImageGenerator } from './types.ts';
+import { checkApiKey } from './src/utils/apiKeyUtils.ts';
 import { expandPrompt, generatePreviewImage, extractPromptFromImage } from './services/geminiService.ts';
 import { Button } from './components/Button.tsx';
 import { PromptCard } from './components/PromptCard.tsx';
@@ -20,6 +21,7 @@ const App: React.FC = () => {
   const [selectedLighting, setSelectedLighting] = useState<LightingMode>(LightingMode.NEUTRAL);
   const [selectedPerspective, setSelectedPerspective] = useState<Perspective>(Perspective.NEUTRAL);
   const [selectedGenerator, setSelectedGenerator] = useState<ImageGenerator>(ImageGenerator.UNIVERSAL);
+  const [selectedAspectRatio, setSelectedAspectRatio] = useState<string>("1:1");
   const [isConcise, setIsConcise] = useState(false);
   const [isExpanding, setIsExpanding] = useState(false);
   const [results, setResults] = useState<GeneratedPrompt[]>([]);
@@ -28,6 +30,11 @@ const App: React.FC = () => {
   const [isDiceRolling, setIsDiceRolling] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+
+  const clearHistory = () => {
+    setResults([]);
+    localStorage.removeItem(STORAGE_KEY);
+  };
 
   const [activeImageData, setActiveImageData] = useState<{base64: string, mimeType: string} | null>(null);
   const [isSettingsDirty, setIsSettingsDirty] = useState(false);
@@ -88,14 +95,19 @@ const App: React.FC = () => {
     }
   };
 
-  const handleErrorAndKeyCheck = async (err: any) => {
+  const handleErrorAndKeyCheck = async (err: Error) => {
     console.error("API call failed:", err);
-    setError(err.message || "AI Engine offline or network timeout.");
+    const isKeyConfigured = await checkApiKey();
+    if (!isKeyConfigured) {
+      setError("API Key not configured. Please select one.");
+    } else {
+      setError(err.message || "AI Engine offline or network timeout.");
+    }
   };
 
   const handleExpand = async (isRandom = false) => {
-    if (!process.env.API_KEY) {
-      setError("API Key not configured.");
+    if (!(await checkApiKey())) {
+      setError("API Key not configured. Please select one.");
       return;
     }
 
@@ -104,7 +116,8 @@ const App: React.FC = () => {
     
     if (isRandom) {
       setIsDiceRolling(true);
-      setTimeout(() => setIsDiceRolling(false), 800);
+      const timer = setTimeout(() => setIsDiceRolling(false), 800);
+      return () => clearTimeout(timer);
     }
 
     setIsExpanding(true);
@@ -146,8 +159,8 @@ const App: React.FC = () => {
   };
 
   const runVisionAnalysis = async (imgData: {base64: string, mimeType: string}) => {
-    if (!process.env.API_KEY) {
-      setError("API Key not configured.");
+    if (!(await checkApiKey())) {
+      setError("API Key not configured. Please select one.");
       return;
     }
 
@@ -203,14 +216,14 @@ const App: React.FC = () => {
   };
 
   const handleGeneratePreview = async (id: string, content: string) => {
-    if (!process.env.API_KEY) {
-      setError("API Key not configured.");
+    if (!(await checkApiKey())) {
+      setError("API Key not configured. Please select one.");
       return;
     }
 
     setResults(prev => prev.map(p => p.id === id ? { ...p, isGeneratingPreview: true } : p));
     try {
-      const { url, usage } = await generatePreviewImage(content);
+      const { url, usage } = await generatePreviewImage(content, selectedAspectRatio);
       updateTokens(usage);
       setResults(prev => prev.map(p => p.id === id ? { ...p, previewUrl: url, isGeneratingPreview: false } : p));
     } catch (err: any) {
@@ -356,6 +369,7 @@ const App: React.FC = () => {
                 { label: 'Lighting', val: selectedLighting, set: setSelectedLighting, opt: LightingMode },
                 { label: 'Lens', val: selectedPerspective, set: setSelectedPerspective, opt: Perspective },
                 { label: 'Engine', val: selectedGenerator, set: setSelectedGenerator, opt: ImageGenerator },
+                { label: 'Ratio', val: selectedAspectRatio, set: setSelectedAspectRatio, opt: { "1:1": "1:1", "3:4": "3:4", "4:3": "4:3", "9:16": "9:16", "16:9": "16:9" } },
               ].map((group) => (
                 <div key={group.label} className="glass p-4 rounded-3xl border-white/5 group hover:border-white/20 transition-all">
                   <label className="text-[9px] font-black text-zinc-600 uppercase tracking-widest block mb-2">{group.label}</label>
@@ -367,6 +381,10 @@ const App: React.FC = () => {
               <button onClick={() => setIsConcise(!isConcise)} className={`glass p-4 rounded-3xl border-white/5 flex flex-col justify-center transition-all ${isConcise ? 'bg-white/5 shadow-inner' : 'hover:bg-white/5'}`}>
                 <span className="text-[9px] font-black text-zinc-600 uppercase tracking-widest mb-1">Density</span>
                 <span className={`text-[11px] font-black uppercase ${isConcise ? 'text-white' : 'text-zinc-500'}`}>{isConcise ? 'SHORT' : 'EXTENDED'}</span>
+              </button>
+              <button onClick={clearHistory} className="glass p-4 rounded-3xl border-white/5 flex flex-col justify-center transition-all hover:bg-red-900/20 hover:border-red-900/50">
+                <span className="text-[9px] font-black text-zinc-600 uppercase tracking-widest mb-1">History</span>
+                <span className="text-[11px] font-black uppercase text-red-500">CLEAR</span>
               </button>
             </div>
           </div>
